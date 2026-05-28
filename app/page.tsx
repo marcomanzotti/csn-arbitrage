@@ -12,8 +12,8 @@ export default function Home() {
           <span className="font-semibold text-gray-900">SEK 4,120</span> and a loan of{' '}
           <span className="font-semibold text-gray-900">SEK 9,472</span> per four weeks
           at full-time study (2026). The loan accrues interest at{' '}
-          <span className="font-semibold text-gray-900">2.135% per year</span> — below
-          what Swedish government bonds currently yield. If you invest the loan in bonds
+          <span className="font-semibold text-gray-900">2.135% per year</span>, which is
+          below what Swedish government bonds currently yield. If you invest the loan in bonds
           and let them mature, you can repay in full on the first due date and keep the
           grant as profit.
         </p>

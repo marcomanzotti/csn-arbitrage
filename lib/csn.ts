@@ -84,9 +84,34 @@ export function getMatchedTenor(daysToRepayment: number): Tenor {
   return '10y';
 }
 
+// Linear interpolation between Riksbank anchor points for a precise per-bond yield.
+// Anchors: 0% at 0 years, 2Y rate, 5Y rate, 10Y rate (flat beyond 10Y).
+export function interpolateYield(rates: BondRates, holdingDays: number): number {
+  const years = holdingDays / 365;
+  const r2 = rates['2y'].rate;
+  const r5 = rates['5y'].rate;
+  const r10 = rates['10y'].rate;
+
+  let pct: number;
+  if (years <= 0) {
+    pct = r2;
+  } else if (years <= 2) {
+    // Interpolate from 0 to 2Y (assume overnight ≈ policy rate proxy = r2 - 0.5, floor at 0)
+    const r0 = Math.max(0, r2 - 0.5);
+    pct = r0 + (r2 - r0) * (years / 2);
+  } else if (years <= 5) {
+    pct = r2 + (r5 - r2) * ((years - 2) / 3);
+  } else if (years <= 10) {
+    pct = r5 + (r10 - r5) * ((years - 5) / 5);
+  } else {
+    pct = r10;
+  }
+
+  return pct / 100;
+}
+
 export function getRateForDays(rates: BondRates, days: number): number {
-  const tenor = getMatchedTenor(days);
-  return rates[tenor].rate / 100;
+  return interpolateYield(rates, days);
 }
 
 export function addMonths(date: Date, months: number): Date {

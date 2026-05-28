@@ -17,7 +17,7 @@ import {
   TaxMode,
   Currency,
 } from '@/lib/csn';
-import { findNearestBond } from '@/lib/bonds';
+import { findBondBeforeRepayment } from '@/lib/bonds';
 import {
   AreaChart,
   Area,
@@ -144,7 +144,7 @@ export default function CSNTool() {
   }, [overriding, overrideInput]);
 
   const { disbursements, summary } = useMemo(
-    () => calculateDisbursements(startDate, months, intensity, bondRates, overrideYield, findNearestBond),
+    () => calculateDisbursements(startDate, months, intensity, bondRates, overrideYield, findBondBeforeRepayment),
     [startDate, months, intensity, bondRates, overrideYield]
   );
 
@@ -200,7 +200,7 @@ export default function CSNTool() {
         <div className="border-b border-gray-100 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <SectionLabel>Swedish government bonds — Riksbank</SectionLabel>
+              <SectionLabel>Swedish government bonds · Riksbank</SectionLabel>
               <div className="flex flex-wrap gap-6">
                 {(['2y', '5y', '10y'] as const).map((tenor) => (
                   <div key={tenor}>
@@ -219,7 +219,7 @@ export default function CSNTool() {
               <p>
                 {bondRates.source === 'riksbank'
                   ? 'Live from Riksbank'
-                  : 'Estimated — Riksbank unavailable'}
+                  : 'Estimated (Riksbank unavailable)'}
               </p>
               <p className="mt-0.5">Updates daily</p>
             </div>
@@ -534,7 +534,7 @@ export default function CSNTool() {
           <div className="space-y-2 mb-5">
             <p className="text-sm text-gray-600">
               <span className="font-semibold text-gray-800">ISK (Investeringssparkonto)</span> uses
-              schablonbeskattning — a flat annual tax on the portfolio value, not on realized gains.
+              schablonbeskattning: a flat annual tax on the portfolio value, not on realized gains.
               No capital gains tax when bonds mature.
             </p>
             <div className="flex items-center gap-3">
@@ -556,7 +556,7 @@ export default function CSNTool() {
             <span className="font-semibold text-gray-800">
               Regular depot (Värdepapperskonto)
             </span>{' '}
-            uses kapitalinkomstskatt — 30% on realized gains when bonds mature. Applied to the
+            uses kapitalinkomstskatt: 30% on realized gains when bonds mature, applied to the
             profit above your invested principal.
           </p>
         )}
@@ -658,7 +658,8 @@ export default function CSNTool() {
                 {disbursements.map((d) => {
                   const net = d.bondValue - d.loanAtRepayment;
                   const b = d.matchedBond;
-                  const mismatch = b && Math.abs(b.daysOff) > 14;
+                  // daysOff is negative = matures before repayment (correct), flag if more than 14 days early
+                  const mismatch = b && b.daysOff < -14;
                   return (
                     <tr key={d.monthIndex} className="hover:bg-gray-50/60 transition-colors">
                       <td className="px-5 py-3 font-medium text-gray-900 whitespace-nowrap">{d.label}</td>
@@ -669,7 +670,7 @@ export default function CSNTool() {
                             <p className="text-xs text-gray-500">{b.name}</p>
                             {mismatch && (
                               <p className="text-[11px] text-amber-600 mt-0.5">
-                                ⚠ {Math.abs(b.daysOff)}d {b.daysOff > 0 ? 'after' : 'before'} target
+                                ⚠ Matures {Math.abs(b.daysOff)}d before repayment
                               </p>
                             )}
                           </div>
@@ -718,9 +719,11 @@ export default function CSNTool() {
               </tfoot>
             </table>
             <p className="px-5 py-3 text-[11px] text-gray-400 border-t border-gray-100">
-              Bond ISINs are indicative, sourced from Riksgälden records. Treasury bill ISINs roll quarterly — verify active issuances at{' '}
+              Each payment is matched to the bond with the latest maturity that still falls before your repayment date.
+              Yields are interpolated from the Riksbank curve for each holding period.
+              Bond ISINs are sourced from Riksgälden records. Treasury bill ISINs roll quarterly: verify the active ISIN at{' '}
               <a href="https://www.riksgalden.se" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">riksgalden.se</a>.
-              Yields from Riksbank. A ⚠ flag appears if the nearest bond matures more than 14 days from your target repayment date.
+              A ⚠ flag appears when the matched bond matures more than 14 days before your repayment date.
             </p>
           </div>
         )}
@@ -731,7 +734,7 @@ export default function CSNTool() {
         CSN 2026: SEK 4,120 grant and SEK 9,472 loan per 4-week period (full-time). Loan interest
         2.135% per annum. Bond rates from Riksbank ({bondRates.source === 'riksbank' ? 'live' : 'estimated'}).
         Exchange rates from ECB via Frankfurter
-        {fxDate ? ` (${fxDate})` : ''}. For informational purposes only — not financial advice.
+        {fxDate ? ` (${fxDate})` : ''}. For informational purposes only. Not financial advice.
       </p>
     </div>
   );

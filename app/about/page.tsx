@@ -28,7 +28,7 @@ export default function About() {
           </p>
           <p className="text-sm text-gray-400">Lund University, Sweden</p>
 
-          <div className="mt-6 flex gap-3">
+          <div className="mt-6 flex gap-3 flex-wrap">
             <a
               href="https://github.com/marcomanzotti"
               target="_blank"
@@ -64,47 +64,37 @@ export default function About() {
         </div>
       </div>
 
-      {/* Divider */}
       <div className="mb-12 border-t border-gray-200" />
 
       {/* Bio */}
       <section className="mb-12">
         <h2 className="font-playfair mb-5 text-2xl font-bold text-gray-900">Background</h2>
         <p className="text-base leading-8 text-gray-700">
-          I moved to Sweden to pursue a master&apos;s degree in Social Scientific Data Analysis at
-          Lund University. Lund is one of Scandinavia&apos;s oldest universities, and the programme
-          sits at the intersection of social science and applied statistics — exactly where I wanted
-          to be.
-        </p>
-        <p className="mt-5 text-base leading-8 text-gray-700">
-          Coming from Italy, one of the first things I had to navigate was the Swedish student
-          finance system. CSN is remarkably generous by European standards: a non-repayable grant
-          combined with a low-interest loan, available to international students enrolled in
-          qualifying programmes.
+          I studied Political Science at the University of Bologna, then moved to Sweden for a
+          master&apos;s in Social Scientific Data Analysis at Lund University.
         </p>
       </section>
 
-      {/* Why this tool */}
+      {/* Why */}
       <section className="mb-12">
         <h2 className="font-playfair mb-5 text-2xl font-bold text-gray-900">Why this tool exists</h2>
         <p className="text-base leading-8 text-gray-700">
           I was trying to decide whether to take the maximum CSN loan. The interest rate is 2.135%
-          per year, which is low by any standard. Swedish government bonds currently yield more than
-          that — which raised an obvious question: what if you invested the loan in bonds, let them
-          compound, and repaid everything in full the moment repayment began?
+          per year, which is low. Swedish government bonds currently yield more than that, which
+          raises an obvious question: what if you invested the loan in bonds, let them compound,
+          and repaid everything in full the moment repayment began?
         </p>
         <p className="mt-5 text-base leading-8 text-gray-700">
-          The spread between the loan rate and the bond yield becomes pure profit. The grant, which
-          you never repay, would sit on top of that. I wanted to model this precisely — tracking each
-          monthly disbursement separately, matching each one to the right bond maturity, and accounting
-          for Swedish tax rules under both ISK and regular depot accounts.
+          The spread between the loan rate and the bond yield becomes profit. The grant, which you
+          never repay, sits on top of that. I wanted to model this precisely, tracking each monthly
+          disbursement separately, matching each one to the right bond maturity, and accounting for
+          Swedish tax rules under both ISK and regular depot accounts.
         </p>
         <p className="mt-5 text-base leading-8 text-gray-700">
           I could not find a tool that did this. So I built one.
         </p>
       </section>
 
-      {/* Divider */}
       <div className="mb-12 border-t border-gray-200" />
 
       {/* Disclaimer */}
