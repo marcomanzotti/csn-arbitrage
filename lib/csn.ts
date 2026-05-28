@@ -13,6 +13,31 @@ export const INTENSITY_OPTIONS = [
 ] as const;
 
 export type TaxMode = 'isk' | 'depot' | 'custom';
+export type Tenor = '2y' | '5y' | '10y';
+
+export interface TenorRate {
+  rate: number; // percentage, e.g. 3.42
+  seriesId: string;
+}
+
+export interface BondRates {
+  '2y': TenorRate;
+  '5y': TenorRate;
+  '10y': TenorRate;
+  source: 'riksbank' | 'fallback';
+  updatedAt: string;
+}
+
+export const FALLBACK_RATES: BondRates = {
+  '2y': { rate: 2.8, seriesId: 'SEGVB2YC' },
+  '5y': { rate: 3.0, seriesId: 'SEGVB5YC' },
+  '10y': { rate: 3.2, seriesId: 'SEGVB10YC' },
+  source: 'fallback',
+  updatedAt: new Date().toISOString(),
+};
+
+export const CURRENCIES = ['SEK', 'EUR', 'USD', 'GBP', 'DKK', 'NOK'] as const;
+export type Currency = (typeof CURRENCIES)[number];
 
 export interface Disbursement {
   monthIndex: number;
@@ -21,6 +46,8 @@ export interface Disbursement {
   grant: number;
   loan: number;
   daysToRepayment: number;
+  tenor: Tenor;
+  bondYield: number; // decimal, e.g. 0.0342
   bondValue: number;
   loanAtRepayment: number;
 }
@@ -38,7 +65,18 @@ export interface CSNSummary {
   netGainPreTax: number;
   repaymentDate: Date;
   canRepayImmediately: boolean;
-  shortfall: number;
+}
+
+export function getMatchedTenor(daysToRepayment: number): Tenor {
+  const years = daysToRepayment / 365;
+  if (years <= 2) return '2y';
+  if (years <= 5) return '5y';
+  return '10y';
+}
+
+export function getRateForDays(rates: BondRates, days: number): number {
+  const tenor = getMatchedTenor(days);
+  return rates[tenor].rate / 100;
 }
 
 export function addMonths(date: Date, months: number): Date {
@@ -64,6 +102,33 @@ export function formatSEK(amount: number): string {
   }).format(amount);
 }
 
+export function formatCurrency(
+  amountSEK: number,
+  currency: Currency,
+  rates: Record<string, number>
+): string {
+  if (currency === 'SEK') return formatSEK(amountSEK);
+
+  const rate = rates[currency];
+  if (!rate) return formatSEK(amountSEK);
+
+  const converted = amountSEK * rate;
+
+  const locales: Record<string, string> = {
+    EUR: 'de-DE',
+    USD: 'en-US',
+    GBP: 'en-GB',
+    DKK: 'da-DK',
+    NOK: 'nb-NO',
+  };
+
+  return new Intl.NumberFormat(locales[currency] ?? 'en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(converted);
+}
+
 export function calculateTax(
   bondValue: number,
   principal: number,
@@ -75,19 +140,15 @@ export function calculateTax(
   const gain = bondValue - principal;
 
   if (mode === 'isk') {
-    // Schablonbeskattning: annual flat tax on portfolio value
-    // Approximation: tax = principal * schablonRate * holdingYears
     const taxPaid = principal * schablonRate * holdingYears;
     return { netGain: gain - taxPaid, taxPaid };
   }
 
   if (mode === 'depot') {
-    // 30% capital gains tax on realized gain
     const taxPaid = Math.max(0, gain) * 0.30;
     return { netGain: gain - taxPaid, taxPaid };
   }
 
-  // custom
   const taxPaid = Math.max(0, gain) * customRate;
   return { netGain: gain - taxPaid, taxPaid };
 }
@@ -96,7 +157,8 @@ export function calculateDisbursements(
   startDate: Date,
   months: number,
   intensity: number,
-  bondYield: number
+  rates: BondRates,
+  overrideYield?: number
 ): { disbursements: Disbursement[]; summary: CSNSummary } {
   const grant = CSN_2026.grantPer4Weeks * intensity;
   const loan = CSN_2026.loanPer4Weeks * intensity;
@@ -110,6 +172,8 @@ export function calculateDisbursements(
     const date = addMonths(startDate, i);
     const daysToRepayment = daysBetween(date, repaymentDate);
     const yearsToRepayment = daysToRepayment / 365;
+    const tenor = getMatchedTenor(daysToRepayment);
+    const bondYield = overrideYield ?? getRateForDays(rates, daysToRepayment);
 
     const bondValue = loan * Math.pow(1 + bondYield, yearsToRepayment);
     const loanAtRepayment = loan * Math.pow(1 + CSN_2026.loanInterestRate, yearsToRepayment);
@@ -121,6 +185,8 @@ export function calculateDisbursements(
       grant,
       loan,
       daysToRepayment,
+      tenor,
+      bondYield,
       bondValue,
       loanAtRepayment,
     });
@@ -142,7 +208,6 @@ export function calculateDisbursements(
       netGainPreTax,
       repaymentDate,
       canRepayImmediately: netGainPreTax >= 0,
-      shortfall: Math.max(0, -netGainPreTax),
     },
   };
 }
@@ -150,7 +215,8 @@ export function calculateDisbursements(
 export function buildChartData(
   disbursements: Disbursement[],
   repaymentDate: Date,
-  bondYield: number
+  rates: BondRates,
+  overrideYield?: number
 ) {
   if (disbursements.length === 0) return [];
 
@@ -160,17 +226,16 @@ export function buildChartData(
 
   for (let m = 0; m <= Math.ceil(totalMonths); m++) {
     const date = addMonths(startDate, m);
-    const days = daysBetween(startDate, date);
 
-    // cumulative loan balance (all disbursements that have happened, with interest)
     let loanBalance = 0;
     let bondPortfolio = 0;
 
     for (const d of disbursements) {
       if (d.date <= date) {
         const daysHeld = daysBetween(d.date, date);
+        const yieldRate = overrideYield ?? getRateForDays(rates, d.daysToRepayment);
         loanBalance += d.loan * Math.pow(1 + CSN_2026.loanInterestRate, daysHeld / 365);
-        bondPortfolio += d.loan * Math.pow(1 + bondYield, daysHeld / 365);
+        bondPortfolio += d.loan * Math.pow(1 + yieldRate, daysHeld / 365);
       }
     }
 
@@ -178,7 +243,6 @@ export function buildChartData(
       month: formatMonth(date),
       loanBalance: Math.round(loanBalance),
       bondPortfolio: Math.round(bondPortfolio),
-      isRepayment: m === Math.round(daysBetween(startDate, repaymentDate) / 30),
     });
   }
 

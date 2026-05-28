@@ -1,30 +1,42 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import Link from 'next/link';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-playfair',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'CSN Arbitrage',
   description:
-    'Model whether investing your CSN loan in SEK bonds lets you repay immediately — keeping the grant as pure profit.',
+    'Model whether investing your CSN loan in SEK bonds lets you repay immediately and keep the grant as profit.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-gray-50 text-gray-900 antialiased`}>
-        <header className="border-b border-gray-200 bg-white">
+    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+      <body className="bg-[#f8f8f6] text-gray-900 antialiased">
+        <header className="border-b border-gray-200/80 bg-white/90 backdrop-blur-sm sticky top-0 z-10">
           <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="text-xl font-bold tracking-tight" style={{ color: '#006AA7' }}>
+            <Link href="/" className="group flex items-center gap-2.5">
+              <span
+                className="font-playfair text-xl font-bold tracking-tight text-gray-900"
+              >
                 CSN Arbitrage
               </span>
             </Link>
-            <nav className="flex gap-6 text-sm font-medium text-gray-600">
-              <Link href="/" className="hover:text-gray-900">Tool</Link>
-              <Link href="/about" className="hover:text-gray-900">About</Link>
+            <nav className="flex gap-7 text-sm font-medium text-gray-500">
+              <Link href="/" className="hover:text-gray-900 transition-colors">Tool</Link>
+              <Link href="/about" className="hover:text-gray-900 transition-colors">About</Link>
             </nav>
           </div>
         </header>
