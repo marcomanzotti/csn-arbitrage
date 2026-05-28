@@ -17,6 +17,7 @@ import {
   TaxMode,
   Currency,
 } from '@/lib/csn';
+import { findNearestBond } from '@/lib/bonds';
 import {
   AreaChart,
   Area,
@@ -143,7 +144,7 @@ export default function CSNTool() {
   }, [overriding, overrideInput]);
 
   const { disbursements, summary } = useMemo(
-    () => calculateDisbursements(startDate, months, intensity, bondRates, overrideYield),
+    () => calculateDisbursements(startDate, months, intensity, bondRates, overrideYield, findNearestBond),
     [startDate, months, intensity, bondRates, overrideYield]
   );
 
@@ -643,11 +644,12 @@ export default function CSNTool() {
               <thead className="bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
                 <tr>
                   <th className="px-5 py-3 text-left">Month</th>
-                  <th className="px-5 py-3 text-left">Tenor</th>
-                  <th className="px-5 py-3 text-right">Yield</th>
+                  <th className="px-5 py-3 text-left">Suggested bond</th>
+                  <th className="px-5 py-3 text-left">Maturity</th>
+                  <th className="px-5 py-3 text-left">Tenor / yield</th>
                   <th className="px-5 py-3 text-right">Grant</th>
-                  <th className="px-5 py-3 text-right">Loan</th>
-                  <th className="px-5 py-3 text-right">Bond at repayment</th>
+                  <th className="px-5 py-3 text-right">Loan invested</th>
+                  <th className="px-5 py-3 text-right">Bond value at repayment</th>
                   <th className="px-5 py-3 text-right">Loan owed</th>
                   <th className="px-5 py-3 text-right">Net pre-tax</th>
                 </tr>
@@ -655,19 +657,39 @@ export default function CSNTool() {
               <tbody className="divide-y divide-gray-50">
                 {disbursements.map((d) => {
                   const net = d.bondValue - d.loanAtRepayment;
+                  const b = d.matchedBond;
+                  const mismatch = b && Math.abs(b.daysOff) > 14;
                   return (
                     <tr key={d.monthIndex} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-5 py-3 font-medium text-gray-900">{d.label}</td>
-                      <td className="px-5 py-3 text-gray-500">{TENOR_LABELS[d.tenor]}</td>
-                      <td className="px-5 py-3 text-right text-gray-600">
-                        {(d.bondYield * 100).toFixed(2)}%
+                      <td className="px-5 py-3 font-medium text-gray-900 whitespace-nowrap">{d.label}</td>
+                      <td className="px-5 py-3">
+                        {b ? (
+                          <div>
+                            <p className="font-mono text-xs text-gray-700 font-semibold">{b.isin}</p>
+                            <p className="text-xs text-gray-500">{b.name}</p>
+                            {mismatch && (
+                              <p className="text-[11px] text-amber-600 mt-0.5">
+                                ⚠ {Math.abs(b.daysOff)}d {b.daysOff > 0 ? 'after' : 'before'} target
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">No match</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {b ? b.maturity.toLocaleDateString('en-SE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                      </td>
+                      <td className="px-5 py-3 whitespace-nowrap">
+                        <span className="text-xs text-gray-500">{TENOR_LABELS[d.tenor]}</span>
+                        <span className="ml-1 text-xs font-semibold text-gray-800">{(d.bondYield * 100).toFixed(2)}%</span>
                       </td>
                       <td className="px-5 py-3 text-right text-gray-600">{fmt(d.grant)}</td>
                       <td className="px-5 py-3 text-right text-gray-600">{fmt(d.loan)}</td>
                       <td className="px-5 py-3 text-right text-gray-700">{fmt(d.bondValue)}</td>
                       <td className="px-5 py-3 text-right text-gray-700">{fmt(d.loanAtRepayment)}</td>
                       <td
-                        className={`px-5 py-3 text-right font-semibold ${
+                        className={`px-5 py-3 text-right font-semibold whitespace-nowrap ${
                           net >= 0 ? 'text-emerald-600' : 'text-red-500'
                         }`}
                       >
@@ -679,7 +701,7 @@ export default function CSNTool() {
               </tbody>
               <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-sm">
                 <tr>
-                  <td className="px-5 py-3 text-gray-900" colSpan={3}>Total</td>
+                  <td className="px-5 py-3 text-gray-900" colSpan={4}>Total</td>
                   <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalGrant)}</td>
                   <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalLoan)}</td>
                   <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalBondValue)}</td>
@@ -695,6 +717,11 @@ export default function CSNTool() {
                 </tr>
               </tfoot>
             </table>
+            <p className="px-5 py-3 text-[11px] text-gray-400 border-t border-gray-100">
+              Bond ISINs are indicative, sourced from Riksgälden records. Treasury bill ISINs roll quarterly — verify active issuances at{' '}
+              <a href="https://www.riksgalden.se" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">riksgalden.se</a>.
+              Yields from Riksbank. A ⚠ flag appears if the nearest bond matures more than 14 days from your target repayment date.
+            </p>
           </div>
         )}
       </section>

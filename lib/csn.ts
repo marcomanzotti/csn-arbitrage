@@ -39,6 +39,15 @@ export const FALLBACK_RATES: BondRates = {
 export const CURRENCIES = ['SEK', 'EUR', 'USD', 'GBP', 'DKK', 'NOK'] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
+export interface MatchedBond {
+  isin: string;
+  name: string;
+  type: string;
+  maturity: Date;
+  coupon: number;
+  daysOff: number; // positive = matures after target, negative = before
+}
+
 export interface Disbursement {
   monthIndex: number;
   date: Date;
@@ -50,6 +59,7 @@ export interface Disbursement {
   bondYield: number; // decimal, e.g. 0.0342
   bondValue: number;
   loanAtRepayment: number;
+  matchedBond: MatchedBond | null;
 }
 
 export interface TaxResult {
@@ -158,7 +168,8 @@ export function calculateDisbursements(
   months: number,
   intensity: number,
   rates: BondRates,
-  overrideYield?: number
+  overrideYield?: number,
+  findBond?: (target: Date) => { bond: { isin: string; name: string; type: string; maturity: Date; coupon: number }; daysOff: number } | null
 ): { disbursements: Disbursement[]; summary: CSNSummary } {
   const grant = CSN_2026.grantPer4Weeks * intensity;
   const loan = CSN_2026.loanPer4Weeks * intensity;
@@ -178,6 +189,11 @@ export function calculateDisbursements(
     const bondValue = loan * Math.pow(1 + bondYield, yearsToRepayment);
     const loanAtRepayment = loan * Math.pow(1 + CSN_2026.loanInterestRate, yearsToRepayment);
 
+    const bondMatch = findBond ? findBond(repaymentDate) : null;
+    const matchedBond: MatchedBond | null = bondMatch
+      ? { ...bondMatch.bond, daysOff: bondMatch.daysOff }
+      : null;
+
     disbursements.push({
       monthIndex: i,
       date,
@@ -189,6 +205,7 @@ export function calculateDisbursements(
       bondYield,
       bondValue,
       loanAtRepayment,
+      matchedBond,
     });
   }
 

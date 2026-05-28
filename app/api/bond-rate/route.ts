@@ -1,46 +1,41 @@
 import { NextResponse } from 'next/server';
 
-// Riksbank SWEA series IDs for Swedish government bonds
 const SERIES = {
   '2y': 'SEGVB2YC',
   '5y': 'SEGVB5YC',
   '10y': 'SEGVB10YC',
 };
 
-const FALLBACKS = { '2y': 2.8, '5y': 3.0, '10y': 3.2 };
+const FALLBACKS = { '2y': 2.185, '5y': 2.385, '10y': 2.659 };
+
+function dateRange() {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - 10); // look back 10 days to catch weekends/holidays
+  return {
+    from: from.toISOString().split('T')[0],
+    to: to.toISOString().split('T')[0],
+  };
+}
 
 async function fetchLatest(seriesId: string): Promise<number | null> {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    // Try observations endpoint with a recent date window
-    const url = `https://api.riksbank.se/swea/v1/observations/${seriesId}?from=${sevenDaysAgo()}&to=${today}`;
+    const { from, to } = dateRange();
+    const url = `https://api.riksbank.se/swea/v1/Observations/${seriesId}/${from}/${to}`;
     const res = await fetch(url, {
       headers: { Accept: 'application/json' },
       next: { revalidate: 86400 },
     });
     if (!res.ok) return null;
-    const data = await res.json();
-
-    // SWEA returns an array of observations; pick the most recent
-    const observations: Array<{ date: string; value: string }> =
-      Array.isArray(data) ? data : data?.observations ?? [];
-    if (!observations.length) return null;
-
-    const latest = observations[observations.length - 1];
-    const rate = parseFloat(latest.value);
-    return isNaN(rate) ? null : rate;
+    const data: Array<{ date: string; value: number }> = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data[data.length - 1].value;
   } catch {
     return null;
   }
 }
 
-function sevenDaysAgo(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 7);
-  return d.toISOString().split('T')[0];
-}
-
-export const revalidate = 86400; // 24 hours — daily update
+export const revalidate = 86400;
 
 export async function GET() {
   const [r2y, r5y, r10y] = await Promise.all([
