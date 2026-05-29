@@ -15,10 +15,38 @@ const playfair = Playfair_Display({
   display: 'swap',
 });
 
+const BASE_URL = 'https://csn-arbitrage.vercel.app';
+const DESCRIPTION =
+  'Model whether investing your CSN loan in Swedish government bonds lets you repay in full on day one and keep the grant as profit. Live Riksbank rates, real bond ISINs, Swedish tax support.';
+
 export const metadata: Metadata = {
-  title: 'CSN Arbitrage',
-  description:
-    'Model whether investing your CSN loan in SEK bonds lets you repay immediately and keep the grant as profit.',
+  metadataBase: new URL(BASE_URL),
+  title: {
+    default: 'CSN Arbitrage',
+    template: '%s | CSN Arbitrage',
+  },
+  description: DESCRIPTION,
+  openGraph: {
+    title: 'CSN Arbitrage',
+    description: DESCRIPTION,
+    url: BASE_URL,
+    siteName: 'CSN Arbitrage',
+    locale: 'en_SE',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'CSN Arbitrage',
+    description: DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
+  },
+  alternates: {
+    canonical: BASE_URL,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

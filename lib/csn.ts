@@ -54,10 +54,12 @@ export interface Disbursement {
   label: string;
   grant: number;
   loan: number;
+  investedAmount: number; // loan * investPercent
+  cashAmount: number;     // loan * (1 - investPercent), held flat
   daysToRepayment: number;
   tenor: Tenor;
   bondYield: number; // decimal, e.g. 0.0342
-  bondValue: number;
+  bondValue: number; // investedAmount grown at bondYield to repayment date
   loanAtRepayment: number;
   matchedBond: MatchedBond | null;
 }
@@ -70,9 +72,12 @@ export interface TaxResult {
 export interface CSNSummary {
   totalGrant: number;
   totalLoan: number;
-  totalBondValue: number;
+  totalInvested: number;    // sum of investedAmount
+  totalCash: number;        // sum of cashAmount (uninvested, flat)
+  totalBondValue: number;   // bond portion grown at yield
+  totalAtRepayment: number; // totalBondValue + totalCash
   totalLoanAtRepayment: number;
-  netGainPreTax: number;
+  netGainPreTax: number;    // totalAtRepayment - totalLoanAtRepayment
   repaymentDate: Date;
   canRepayImmediately: boolean;
 }
@@ -194,7 +199,8 @@ export function calculateDisbursements(
   intensity: number,
   rates: BondRates,
   overrideYield?: number,
-  findBond?: (target: Date) => { bond: { isin: string; name: string; type: string; maturity: Date; coupon: number }; daysOff: number } | null
+  findBond?: (target: Date) => { bond: { isin: string; name: string; type: string; maturity: Date; coupon: number }; daysOff: number } | null,
+  investPercent: number = 1.0
 ): { disbursements: Disbursement[]; summary: CSNSummary } {
   const grant = CSN_2026.grantPer4Weeks * intensity;
   const loan = CSN_2026.loanPer4Weeks * intensity;
@@ -211,7 +217,9 @@ export function calculateDisbursements(
     const tenor = getMatchedTenor(daysToRepayment);
     const bondYield = overrideYield ?? getRateForDays(rates, daysToRepayment);
 
-    const bondValue = loan * Math.pow(1 + bondYield, yearsToRepayment);
+    const investedAmount = loan * investPercent;
+    const cashAmount = loan * (1 - investPercent);
+    const bondValue = investedAmount * Math.pow(1 + bondYield, yearsToRepayment);
     const loanAtRepayment = loan * Math.pow(1 + CSN_2026.loanInterestRate, yearsToRepayment);
 
     const bondMatch = findBond ? findBond(repaymentDate) : null;
@@ -225,6 +233,8 @@ export function calculateDisbursements(
       label: formatMonth(date),
       grant,
       loan,
+      investedAmount,
+      cashAmount,
       daysToRepayment,
       tenor,
       bondYield,
@@ -236,16 +246,22 @@ export function calculateDisbursements(
 
   const totalGrant = disbursements.reduce((s, d) => s + d.grant, 0);
   const totalLoan = disbursements.reduce((s, d) => s + d.loan, 0);
+  const totalInvested = disbursements.reduce((s, d) => s + d.investedAmount, 0);
+  const totalCash = disbursements.reduce((s, d) => s + d.cashAmount, 0);
   const totalBondValue = disbursements.reduce((s, d) => s + d.bondValue, 0);
+  const totalAtRepayment = totalBondValue + totalCash;
   const totalLoanAtRepayment = disbursements.reduce((s, d) => s + d.loanAtRepayment, 0);
-  const netGainPreTax = totalBondValue - totalLoanAtRepayment;
+  const netGainPreTax = totalAtRepayment - totalLoanAtRepayment;
 
   return {
     disbursements,
     summary: {
       totalGrant,
       totalLoan,
+      totalInvested,
+      totalCash,
       totalBondValue,
+      totalAtRepayment,
       totalLoanAtRepayment,
       netGainPreTax,
       repaymentDate,
@@ -277,7 +293,7 @@ export function buildChartData(
         const daysHeld = daysBetween(d.date, date);
         const yieldRate = overrideYield ?? getRateForDays(rates, d.daysToRepayment);
         loanBalance += d.loan * Math.pow(1 + CSN_2026.loanInterestRate, daysHeld / 365);
-        bondPortfolio += d.loan * Math.pow(1 + yieldRate, daysHeld / 365);
+        bondPortfolio += d.investedAmount * Math.pow(1 + yieldRate, daysHeld / 365) + d.cashAmount;
       }
     }
 

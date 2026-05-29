@@ -102,6 +102,9 @@ export default function CSNTool() {
   const [schablonRate, setSchablonRate] = useState(0.015);
   const [customTaxRate, setCustomTaxRate] = useState(0.30);
 
+  // Invest %
+  const [investPct, setInvestPct] = useState(100);
+
   // UI state
   const [showDetail, setShowDetail] = useState(false);
 
@@ -144,8 +147,8 @@ export default function CSNTool() {
   }, [overriding, overrideInput]);
 
   const { disbursements, summary } = useMemo(
-    () => calculateDisbursements(startDate, months, intensity, bondRates, overrideYield, findBondBeforeRepayment),
-    [startDate, months, intensity, bondRates, overrideYield]
+    () => calculateDisbursements(startDate, months, intensity, bondRates, overrideYield, findBondBeforeRepayment, investPct / 100),
+    [startDate, months, intensity, bondRates, overrideYield, investPct]
   );
 
   const chartData = useMemo(
@@ -166,7 +169,7 @@ export default function CSNTool() {
     () =>
       calculateTax(
         summary.totalBondValue,
-        summary.totalLoan,
+        summary.totalInvested,
         avgHoldingYears,
         taxMode,
         schablonRate,
@@ -175,8 +178,9 @@ export default function CSNTool() {
     [summary, avgHoldingYears, taxMode, schablonRate, customTaxRate]
   );
 
-  const netAfterTax = summary.totalBondValue - taxResult.taxPaid - summary.totalLoanAtRepayment;
+  const netAfterTax = summary.totalAtRepayment - taxResult.taxPaid - summary.totalLoanAtRepayment;
   const canRepayAfterTax = netAfterTax >= 0;
+  const grandTotal = summary.totalGrant + netAfterTax;
 
   function fmt(sek: number) {
     return formatCurrency(sek, currency, exchangeRates);
@@ -221,7 +225,11 @@ export default function CSNTool() {
                   ? 'Live from Riksbank'
                   : 'Estimated (Riksbank unavailable)'}
               </p>
-              <p className="mt-0.5">Updates daily</p>
+              {bondRates.updatedAt && (
+                <p className="mt-0.5">
+                  Updated {new Date(bondRates.updatedAt).toLocaleDateString('en-SE', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -310,7 +318,7 @@ export default function CSNTool() {
           </div>
         </div>
 
-        <div>
+        <div className="mb-7">
           <label className="mb-2 block text-sm text-gray-600">Study intensity</label>
           <div className="flex gap-2 flex-wrap">
             {INTENSITY_OPTIONS.map((opt) => (
@@ -322,6 +330,45 @@ export default function CSNTool() {
               />
             ))}
           </div>
+        </div>
+
+        <div>
+          <div className="flex items-baseline justify-between mb-2">
+            <label className="text-sm text-gray-600">Loan portion to invest in bonds</label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={investPct}
+                onChange={(e) => {
+                  const v = Math.min(100, Math.max(0, Number(e.target.value)));
+                  setInvestPct(isNaN(v) ? 0 : v);
+                }}
+                className="w-16 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#006AA7]"
+                style={{ color: BLUE }}
+              />
+              <span className="text-base font-medium text-gray-400">%</span>
+            </div>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={investPct}
+            onChange={(e) => setInvestPct(Number(e.target.value))}
+            className="w-full accent-[#006AA7]"
+          />
+          <div className="flex justify-between text-xs text-gray-400 mt-1">
+            <span>0% (hold as cash)</span>
+            <span>100% (invest all)</span>
+          </div>
+          {investPct < 100 && (
+            <p className="mt-2 text-xs text-gray-400">
+              {investPct}% invested in bonds · {100 - investPct}% kept as cash (no growth, still counts toward repayment)
+            </p>
+          )}
         </div>
       </Card>
 
@@ -617,13 +664,52 @@ export default function CSNTool() {
               <p className="font-semibold text-gray-800">{fmt(taxResult.taxPaid)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Bond proceeds</p>
-              <p className="font-semibold text-gray-800">{fmt(summary.totalBondValue)}</p>
+              <p className="text-xs text-gray-500">{investPct < 100 ? 'Assets at repayment' : 'Bond proceeds'}</p>
+              <p className="font-semibold text-gray-800">{fmt(summary.totalAtRepayment)}</p>
             </div>
             <div>
               <p className="text-xs text-gray-500">Loan + interest</p>
               <p className="font-semibold text-gray-800">{fmt(summary.totalLoanAtRepayment)}</p>
             </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Grand total box ── */}
+      <Card className={`p-6 ${grandTotal >= 0 ? 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-white' : 'border-red-200 bg-gradient-to-br from-red-50 to-white'}`}>
+        <SectionLabel>Total money in your pocket</SectionLabel>
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className={`text-5xl font-bold tracking-tight ${grandTotal >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+              {grandTotal >= 0 ? '+' : ''}{fmt(grandTotal)}
+            </p>
+            <p className="mt-2 text-sm text-gray-500">
+              {grandTotal >= 0
+                ? 'Total net gain: grant received plus bond profit after tax.'
+                : 'The strategy results in a net loss at these rates and settings.'}
+            </p>
+          </div>
+          <span className={`text-5xl shrink-0 ${grandTotal >= 0 ? 'text-emerald-400' : 'text-red-300'}`}>
+            {grandTotal >= 0 ? '✓' : '✗'}
+          </span>
+        </div>
+        <div className="mt-5 grid grid-cols-3 gap-3 border-t border-gray-200/50 pt-5">
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Grant received</p>
+            <p className="text-lg font-bold text-gray-800">+{fmt(summary.totalGrant)}</p>
+            <p className="text-xs text-gray-400">Never repaid</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Bond profit after tax</p>
+            <p className={`text-lg font-bold ${netAfterTax >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+              {netAfterTax >= 0 ? '+' : ''}{fmt(netAfterTax)}
+            </p>
+            <p className="text-xs text-gray-400">After repaying loan + interest</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Tax paid</p>
+            <p className="text-lg font-bold text-gray-600">{fmt(taxResult.taxPaid)}</p>
+            <p className="text-xs text-gray-400 capitalize">{taxMode === 'isk' ? 'ISK schablonsskatt' : taxMode === 'depot' ? '30% kapitalinkomst' : 'Custom rate'}</p>
           </div>
         </div>
       </Card>
@@ -648,7 +734,7 @@ export default function CSNTool() {
                   <th className="px-5 py-3 text-left">Maturity</th>
                   <th className="px-5 py-3 text-left">Tenor / yield</th>
                   <th className="px-5 py-3 text-right">Grant</th>
-                  <th className="px-5 py-3 text-right">Loan invested</th>
+                  <th className="px-5 py-3 text-right">Amount invested</th>
                   <th className="px-5 py-3 text-right">Bond value at repayment</th>
                   <th className="px-5 py-3 text-right">Loan owed</th>
                   <th className="px-5 py-3 text-right">Net pre-tax</th>
@@ -656,7 +742,7 @@ export default function CSNTool() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {disbursements.map((d) => {
-                  const net = d.bondValue - d.loanAtRepayment;
+                  const net = d.bondValue + d.cashAmount - d.loanAtRepayment;
                   const b = d.matchedBond;
                   // daysOff is negative = matures before repayment (correct), flag if more than 14 days early
                   const mismatch = b && b.daysOff < -14;
@@ -686,7 +772,7 @@ export default function CSNTool() {
                         <span className="ml-1 text-xs font-semibold text-gray-800">{(d.bondYield * 100).toFixed(2)}%</span>
                       </td>
                       <td className="px-5 py-3 text-right text-gray-600">{fmt(d.grant)}</td>
-                      <td className="px-5 py-3 text-right text-gray-600">{fmt(d.loan)}</td>
+                      <td className="px-5 py-3 text-right text-gray-600">{fmt(d.investedAmount)}</td>
                       <td className="px-5 py-3 text-right text-gray-700">{fmt(d.bondValue)}</td>
                       <td className="px-5 py-3 text-right text-gray-700">{fmt(d.loanAtRepayment)}</td>
                       <td
@@ -704,8 +790,8 @@ export default function CSNTool() {
                 <tr>
                   <td className="px-5 py-3 text-gray-900" colSpan={4}>Total</td>
                   <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalGrant)}</td>
-                  <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalLoan)}</td>
-                  <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalBondValue)}</td>
+                  <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalInvested)}</td>
+                  <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalAtRepayment)}</td>
                   <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalLoanAtRepayment)}</td>
                   <td
                     className={`px-5 py-3 text-right ${
