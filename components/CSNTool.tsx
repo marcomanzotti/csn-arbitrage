@@ -178,7 +178,7 @@ export default function CSNTool() {
     [summary, avgHoldingYears, taxMode, schablonRate, customTaxRate]
   );
 
-  const netAfterTax = summary.totalAtRepayment - taxResult.taxPaid - summary.totalLoanAtRepayment;
+  const netAfterTax = summary.totalBondValue - taxResult.taxPaid - summary.totalLoanAtRepayment;
   const canRepayAfterTax = netAfterTax >= 0;
   const grandTotal = summary.totalGrant + netAfterTax;
 
@@ -664,8 +664,8 @@ export default function CSNTool() {
               <p className="font-semibold text-gray-800">{fmt(taxResult.taxPaid)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">{investPct < 100 ? 'Assets at repayment' : 'Bond proceeds'}</p>
-              <p className="font-semibold text-gray-800">{fmt(summary.totalAtRepayment)}</p>
+              <p className="text-xs text-gray-500">Bond proceeds</p>
+              <p className="font-semibold text-gray-800">{fmt(summary.totalBondValue)}</p>
             </div>
             <div>
               <p className="text-xs text-gray-500">Loan + interest</p>
@@ -693,7 +693,7 @@ export default function CSNTool() {
             {grandTotal >= 0 ? '✓' : '✗'}
           </span>
         </div>
-        <div className="mt-5 grid grid-cols-3 gap-3 border-t border-gray-200/50 pt-5">
+        <div className={`mt-5 grid gap-3 border-t border-gray-200/50 pt-5 ${investPct < 100 ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <div>
             <p className="text-xs text-gray-400 mb-1">Grant received</p>
             <p className="text-lg font-bold text-gray-800">+{fmt(summary.totalGrant)}</p>
@@ -704,13 +704,20 @@ export default function CSNTool() {
             <p className={`text-lg font-bold ${netAfterTax >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
               {netAfterTax >= 0 ? '+' : ''}{fmt(netAfterTax)}
             </p>
-            <p className="text-xs text-gray-400">After repaying loan + interest</p>
+            <p className="text-xs text-gray-400">Bonds minus loan repayment</p>
           </div>
           <div>
             <p className="text-xs text-gray-400 mb-1">Tax paid</p>
             <p className="text-lg font-bold text-gray-600">{fmt(taxResult.taxPaid)}</p>
-            <p className="text-xs text-gray-400 capitalize">{taxMode === 'isk' ? 'ISK schablonsskatt' : taxMode === 'depot' ? '30% kapitalinkomst' : 'Custom rate'}</p>
+            <p className="text-xs text-gray-400">{taxMode === 'isk' ? 'ISK schablonsskatt' : taxMode === 'depot' ? '30% kapitalinkomst' : 'Custom rate'}</p>
           </div>
+          {investPct < 100 && (
+            <div>
+              <p className="text-xs text-gray-400 mb-1">Loan spent on living</p>
+              <p className="text-lg font-bold text-gray-500">{fmt(summary.totalSpent)}</p>
+              <p className="text-xs text-gray-400">Not available at repayment</p>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -742,7 +749,7 @@ export default function CSNTool() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {disbursements.map((d) => {
-                  const net = d.bondValue + d.cashAmount - d.loanAtRepayment;
+                  const net = d.bondValue - d.loanAtRepayment;
                   const b = d.matchedBond;
                   // daysOff is negative = matures before repayment (correct), flag if more than 14 days early
                   const mismatch = b && b.daysOff < -14;
@@ -791,7 +798,7 @@ export default function CSNTool() {
                   <td className="px-5 py-3 text-gray-900" colSpan={4}>Total</td>
                   <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalGrant)}</td>
                   <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalInvested)}</td>
-                  <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalAtRepayment)}</td>
+                  <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalBondValue)}</td>
                   <td className="px-5 py-3 text-right text-gray-800">{fmt(summary.totalLoanAtRepayment)}</td>
                   <td
                     className={`px-5 py-3 text-right ${
